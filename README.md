@@ -1,0 +1,2 @@
+# RySnapshots
+photobooth
