@@ -132,6 +132,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            transform: scaleX(-1); /* Mirror effect for front camera */
         }
 
         .countdown {
@@ -181,6 +182,22 @@
 
         .btn-secondary:hover {
             background: #e0e0e0;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            background: #ff4757;
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            margin: 10px 0;
+            text-align: center;
+            display: none;
         }
 
         .polaroid-section {
@@ -453,15 +470,17 @@
             </div>
         </div>
 
+        <div class="error-message" id="errorMessage"></div>
+
         <div class="main-content">
             <div class="camera-section">
                 <div class="camera-container">
-                    <video id="video" autoplay muted></video>
+                    <video id="video" autoplay muted playsinline></video>
                     <div class="countdown" id="countdown"></div>
                 </div>
                 
                 <div class="camera-controls">
-                    <button class="btn btn-primary" id="startBtn">Start Session</button>
+                    <button class="btn btn-primary" id="startBtn">Enable Camera</button>
                     <button class="btn btn-secondary" id="resetBtn">Reset All</button>
                 </div>
             </div>
@@ -472,7 +491,7 @@
                         <div class="progress-fill" id="progressFill"></div>
                     </div>
                     
-                    <div class="status" id="status">Ready to start!</div>
+                    <div class="status" id="status">Tap "Enable Camera" to start!</div>
                     
                     <div class="photo-grid grid-4" id="photoGrid">
                         <div class="photo-slot grid-4" data-index="0">
@@ -508,6 +527,7 @@
         let isCapturing = false;
         let currentPhotoIndex = 0;
         let stream = null;
+        let cameraEnabled = false;
 
         const video = document.getElementById('video');
         const countdown = document.getElementById('countdown');
@@ -518,6 +538,7 @@
         const polaroid = document.getElementById('polaroid');
         const progressFill = document.getElementById('progressFill');
         const status = document.getElementById('status');
+        const errorMessage = document.getElementById('errorMessage');
 
         const colorMap = {
             black: { bg: '#000', text: 'white' },
@@ -538,21 +559,80 @@
             return now.toLocaleDateString('en-US', options);
         }
 
-        // Initialize camera
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        // Enhanced camera initialization with mobile support
         async function initCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                        facingMode: 'user'
-                    } 
-                });
+                // Stop existing stream if any
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+
+                // Enhanced constraints for mobile compatibility
+                const constraints = {
+                    video: {
+                        width: { ideal: 1280, max: 1920 },
+                        height: { ideal: 720, max: 1080 },
+                        facingMode: 'user',
+                        frameRate: { ideal: 30, max: 60 }
+                    },
+                    audio: false
+                };
+
+                // Try to get user media
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
+                
+                // Wait for video to be ready
+                await new Promise((resolve, reject) => {
+                    video.onloadedmetadata = resolve;
+                    video.onerror = reject;
+                    setTimeout(reject, 10000); // 10 second timeout
+                });
+
+                await video.play();
+                cameraEnabled = true;
+                startBtn.textContent = 'Start Session';
+                status.textContent = 'Camera ready! Click "Start Session" to begin.';
+                
             } catch (err) {
-                status.textContent = 'Camera access denied. Please allow camera access.';
-                console.error('Error accessing camera:', err);
+                console.error('Camera error:', err);
+                cameraEnabled = false;
+                startBtn.textContent = 'Enable Camera';
+                
+                let errorMsg = 'Camera access failed. ';
+                if (err.name === 'NotAllowedError') {
+                    errorMsg += 'Please allow camera access and try again.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg += 'No camera found on this device.';
+                } else if (err.name === 'NotSupportedError') {
+                    errorMsg += 'Camera not supported in this browser.';
+                } else if (err.name === 'NotReadableError') {
+                    errorMsg += 'Camera is being used by another app.';
+                } else {
+                    errorMsg += 'Please check your camera permissions and try again.';
+                }
+                
+                status.textContent = errorMsg;
+                showError(errorMsg);
             }
+        }
+
+        // Check if device supports camera
+        function checkCameraSupport() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showError('Camera not supported in this browser. Please use a modern browser.');
+                return false;
+            }
+            return true;
         }
 
         // Mode selection
@@ -629,7 +709,10 @@
                 cropY = (video.videoHeight - cropHeight) / 2;
             }
             
-            ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, baseWidth, baseHeight);
+            // Flip the image horizontally to match the mirrored video display
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, -baseWidth, 0, baseWidth, baseHeight);
+            ctx.scale(-1, 1); // Reset scale
             
             return canvas.toDataURL('image/png');
         }
@@ -665,37 +748,49 @@
         }
 
         async function startPhotoSession() {
+            if (!cameraEnabled) {
+                await initCamera();
+                return;
+            }
+
             if (isCapturing) return;
             
             isCapturing = true;
             startBtn.disabled = true;
             currentPhotoIndex = 0;
             
-            for (let i = 0; i < currentMode; i++) {
-                if (capturedPhotos[i] !== null) continue; // Skip already captured photos
-                
-                currentPhotoIndex = i;
-                status.textContent = `Get ready for photo ${i + 1}/${currentMode}`;
-                
-                await startCountdown();
-                
-                const photoData = capturePhoto();
-                displayPhoto(i, photoData);
-                
-                const progress = ((i + 1) / currentMode) * 100;
-                progressFill.style.width = `${progress}%`;
-                
-                if (i < currentMode - 1) {
-                    status.textContent = 'Great! Next photo in 2 seconds...';
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+            try {
+                for (let i = 0; i < currentMode; i++) {
+                    if (capturedPhotos[i] !== null) continue; // Skip already captured photos
+                    
+                    currentPhotoIndex = i;
+                    status.textContent = `Get ready for photo ${i + 1}/${currentMode}`;
+                    
+                    await startCountdown();
+                    
+                    const photoData = capturePhoto();
+                    displayPhoto(i, photoData);
+                    
+                    const progress = ((i + 1) / currentMode) * 100;
+                    progressFill.style.width = `${progress}%`;
+                    
+                    if (i < currentMode - 1) {
+                        status.textContent = 'Great! Next photo in 2 seconds...';
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
                 }
+                
+                status.textContent = 'Session complete! Download your photos.';
+                downloadBtn.style.display = 'inline-block';
+            } catch (error) {
+                console.error('Photo session error:', error);
+                showError('Error during photo session. Please try again.');
+                status.textContent = 'Error occurred. Please try again.';
+            } finally {
+                isCapturing = false;
+                startBtn.disabled = false;
+                startBtn.textContent = 'Retake Missing';
             }
-            
-            status.textContent = 'Session complete! Download your photos.';
-            downloadBtn.style.display = 'inline-block';
-            isCapturing = false;
-            startBtn.disabled = false;
-            startBtn.textContent = 'Retake Missing';
         }
 
         function retakePhoto(index) {
@@ -715,9 +810,9 @@
             progressFill.style.width = `${progress}%`;
             
             if (filledCount === 0) {
-                startBtn.textContent = 'Start Session';
+                startBtn.textContent = cameraEnabled ? 'Start Session' : 'Enable Camera';
                 downloadBtn.style.display = 'none';
-                status.textContent = 'Ready to start!';
+                status.textContent = cameraEnabled ? 'Ready to start!' : 'Tap "Enable Camera" to start!';
             } else {
                 downloadBtn.style.display = filledCount === currentMode ? 'inline-block' : 'none';
                 status.textContent = `${filledCount}/${currentMode} photos captured`;
@@ -729,10 +824,10 @@
             currentPhotoIndex = 0;
             isCapturing = false;
             startBtn.disabled = false;
-            startBtn.textContent = 'Start Session';
+            startBtn.textContent = cameraEnabled ? 'Start Session' : 'Enable Camera';
             downloadBtn.style.display = 'none';
             progressFill.style.width = '0%';
-            status.textContent = 'Ready to start!';
+            status.textContent = cameraEnabled ? 'Ready to start!' : 'Tap "Enable Camera" to start!';
             
             setupPhotoGrid();
         }
@@ -815,29 +910,39 @@
                 }
             }
             
-            // Add footer saying at bottom
-            ctx.fillStyle = colorMap[currentColor].text;
-            ctx.font = 'italic 16px Arial';
-            ctx.textAlign = 'center';
-            const footerY = canvas.height - 15;
-            ctx.fillText('Every picture tells a story, every moment becomes a memory', canvas.width / 2, footerY);
+            // Add footer text
+            ctx.font = '14px Arial';
+            ctx.fillText('Thank you for using RySnapshots!', canvas.width / 2, canvas.height - 15);
             
-            // Download
+            // Create download link
             const link = document.createElement('a');
-            link.download = `RySnapshots_${currentMode}photos_${Date.now()}.png`;
+            link.download = `rysnapshots-${new Date().toISOString().slice(0,10)}.png`;
             link.href = canvas.toDataURL('image/png');
             link.click();
         }
 
-        // Event listeners
+        // Event listeners for buttons
         startBtn.addEventListener('click', startPhotoSession);
         resetBtn.addEventListener('click', resetSession);
         downloadBtn.addEventListener('click', downloadPolaroid);
 
-        // Initialize
-        initCamera();
-        updatePolaroidColors();
-        setupPhotoGrid();
+        // Initialize the app
+        function initApp() {
+            updatePolaroidColors();
+            setupPhotoGrid();
+            
+            // Check camera support
+            if (!checkCameraSupport()) {
+                startBtn.disabled = true;
+                status.textContent = 'Camera not supported in this browser.';
+            }
+        }
+
+        // Call init when page loads
+        window.addEventListener('DOMContentLoaded', initApp);
+
+        // Make retakePhoto available globally since it's called from HTML onclick
+        window.retakePhoto = retakePhoto;
     </script>
 </body>
 </html>
