@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RySnapshots Photobooth</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 1400px;
+            width: 100%;
+            min-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            font-weight: bold;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .mode-selector, .color-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .mode-btn, .color-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            font-size: clamp(0.8rem, 2vw, 1rem);
+        }
+
+        .mode-btn {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .color-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            min-width: 35px;
+        }
+
+        .color-btn.active {
+            border-color: #333;
+            transform: scale(1.1);
+        }
+
+        .color-black { background: #000; }
+        .color-white { background: #fff; border: 2px solid #ccc; }
+        .color-pink { background: #ffc0cb; }
+        .color-yellow { background: #ffeb3b; }
+        .color-blue { background: #87ceeb; }
+
+        .main-content {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            flex: 1;
+        }
+
+        .camera-section {
+            flex: 1;
+            text-align: center;
+            min-width: 280px;
+        }
+
+        .camera-container {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            aspect-ratio: 4/3;
+            max-height: 400px;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: clamp(2rem, 8vw, 4rem);
+            color: white;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            display: none;
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            font-size: clamp(0.8rem, 2vw, 1rem);
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .polaroid-section {
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .polaroid {
+            background: var(--border-color, #000);
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            position: relative;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .polaroid::before {
+            content: 'RySnapshots';
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(0.8rem, 2vw, 1rem);
+            font-weight: bold;
+            color: var(--text-color, white);
+            opacity: 0.8;
+            z-index: 10;
+        }
+
+        .photo-grid {
+            background: transparent;
+            padding: 30px 15px 15px 15px;
+            border-radius: 10px;
+            display: grid;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex: 1;
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .grid-6 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+        .photo-slot {
+            background: rgba(245, 245, 245, 0.3);
+            border: 2px dashed rgba(204, 204, 204, 0.5);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 120px;
+        }
+
+        .photo-slot.grid-4 {
+            aspect-ratio: 4/5;
+        }
+
+        .photo-slot.grid-6 {
+            aspect-ratio: 4/3;
+        }
+
+        .photo-slot:hover {
+            border-color: rgba(102, 126, 234, 0.7);
+        }
+
+        .photo-slot img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            border-radius: 6px;
+        }
+
+        .photo-number {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 5;
+        }
+
+        .retake-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #ff4757;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: none;
+            z-index: 5;
+        }
+
+        .photo-slot.filled .retake-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .progress-bar {
+            background: rgba(240, 240, 240, 0.3);
+            border-radius: 10px;
+            height: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+            color: var(--text-color, white);
+            font-size: clamp(0.9rem, 2vw, 1rem);
+        }
+
+        .download-section {
+            text-align: center;
+            padding-top: 15px;
+            border-top: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+                min-height: 95vh;
+            }
+            
+            .main-content {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .mode-selector, .color-selector {
+                justify-content: center;
+            }
+            
+            .camera-container {
+                max-height: 300px;
+            }
+            
+            .photo-grid {
+                gap: 6px;
+                padding: 25px 10px 10px 10px;
+            }
+            
+            .photo-slot {
+                min-height: 80px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+                border-radius: 15px;
+            }
+            
+            .header {
+                margin-bottom: 15px;
+            }
+            
+            .controls {
+                gap: 8px;
+            }
+            
+            .camera-controls {
+                gap: 8px;
+            }
+            
+            .btn {
+                padding: 8px 16px;
+            }
+            
+            .photo-grid {
+                gap: 4px;
+                padding: 20px 8px 8px 8px;
+            }
+            
+            .photo-slot {
+                min-height: 60px;
+            }
+            
+            .photo-number {
+                width: 18px;
+                height: 18px;
+                font-size: 0.7rem;
+            }
+            
+            .retake-btn {
+                width: 22px;
+                height: 22px;
+                font-size: 0.7rem;
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 600px) {
+            .container {
+                min-height: 98vh;
+                padding: 10px;
+            }
+            
+            .main-content {
+                flex-direction: row;
+            }
+            
+            .camera-container {
+                max-height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">RySnapshots</div>
+            <p>Create amazing photo booth memories!</p>
+        </div>
+
+        <div class="controls">
+            <div class="mode-selector">
+                <span>Mode:</span>
+                <button class="mode-btn active" data-mode="4">4 Photos</button>
+                <button class="mode-btn" data-mode="6">6 Photos</button>
+            </div>
+            
+            <div class="color-selector">
+                <span>Border Color:</span>
+                <button class="color-btn color-black active" data-color="black"></button>
+                <button class="color-btn color-white" data-color="white"></button>
+                <button class="color-btn color-pink" data-color="pink"></button>
+                <button class="color-btn color-yellow" data-color="yellow"></button>
+                <button class="color-btn color-blue" data-color="blue"></button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="camera-section">
+                <div class="camera-container">
+                    <video id="video" autoplay muted></video>
+                    <div class="countdown" id="countdown"></div>
+                </div>
+                
+                <div class="camera-controls">
+                    <button class="btn btn-primary" id="startBtn">Start Session</button>
+                    <button class="btn btn-secondary" id="resetBtn">Reset All</button>
+                </div>
+            </div>
+
+            <div class="polaroid-section">
+                <div class="polaroid" id="polaroid">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    
+                    <div class="status" id="status">Ready to start!</div>
+                    
+                    <div class="photo-grid grid-4" id="photoGrid">
+                        <div class="photo-slot grid-4" data-index="0">
+                            <span class="photo-number">1</span>
+                            <button class="retake-btn" onclick="retakePhoto(0)">↻</button>
+                        </div>
+                        <div class="photo-slot grid-4" data-index="1">
+                            <span class="photo-number">2</span>
+                            <button class="retake-btn" onclick="retakePhoto(1)">↻</button>
+                        </div>
+                        <div class="photo-slot grid-4" data-index="2">
+                            <span class="photo-number">3</span>
+                            <button class="retake-btn" onclick="retakePhoto(2)">↻</button>
+                        </div>
+                        <div class="photo-slot grid-4" data-index="3">
+                            <span class="photo-number">4</span>
+                            <button class="retake-btn" onclick="retakePhoto(3)">↻</button>
+                        </div>
+                    </div>
+
+                    <div class="download-section">
+                        <button class="btn btn-primary" id="downloadBtn" style="display: none;">Download PNG</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = 4;
+        let currentColor = 'black';
+        let capturedPhotos = [];
+        let isCapturing = false;
+        let currentPhotoIndex = 0;
+        let stream = null;
+
+        const video = document.getElementById('video');
+        const countdown = document.getElementById('countdown');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const photoGrid = document.getElementById('photoGrid');
+        const polaroid = document.getElementById('polaroid');
+        const progressFill = document.getElementById('progressFill');
+        const status = document.getElementById('status');
+
+        const colorMap = {
+            black: { bg: '#000', text: 'white' },
+            white: { bg: '#fff', text: 'black' },
+            pink: { bg: '#ffc0cb', text: 'black' },
+            yellow: { bg: '#ffeb3b', text: 'black' },
+            blue: { bg: '#87ceeb', text: 'black' }
+        };
+
+        // Function to format current date
+        function getCurrentDate() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric'
+            };
+            return now.toLocaleDateString('en-US', options);
+        }
+
+        // Initialize camera
+        async function initCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user'
+                    } 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                status.textContent = 'Camera access denied. Please allow camera access.';
+                console.error('Error accessing camera:', err);
+            }
+        }
+
+        // Mode selection
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = parseInt(btn.dataset.mode);
+                setupPhotoGrid();
+                resetSession();
+            });
+        });
+
+        // Color selection
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentColor = btn.dataset.color;
+                updatePolaroidColors();
+            });
+        });
+
+        function updatePolaroidColors() {
+            const colors = colorMap[currentColor];
+            polaroid.style.setProperty('--border-color', colors.bg);
+            polaroid.style.setProperty('--text-color', colors.text);
+        }
+
+        function setupPhotoGrid() {
+            photoGrid.innerHTML = '';
+            photoGrid.className = `photo-grid grid-${currentMode}`;
+            capturedPhotos = new Array(currentMode).fill(null);
+
+            for (let i = 0; i < currentMode; i++) {
+                const slot = document.createElement('div');
+                slot.className = `photo-slot grid-${currentMode}`;
+                slot.dataset.index = i;
+                
+                slot.innerHTML = `
+                    <span class="photo-number">${i + 1}</span>
+                    <button class="retake-btn" onclick="retakePhoto(${i})">↻</button>
+                `;
+                
+                photoGrid.appendChild(slot);
+            }
+        }
+
+        function capturePhoto() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Use higher resolution for better quality
+            const aspectRatio = currentMode === 4 ? 4/5 : 4/3;
+            const baseWidth = 800;
+            const baseHeight = Math.round(baseWidth / aspectRatio);
+            
+            canvas.width = baseWidth;
+            canvas.height = baseHeight;
+            
+            // Calculate crop area to maintain aspect ratio without stretching
+            const videoAspect = video.videoWidth / video.videoHeight;
+            const targetAspect = aspectRatio;
+            
+            let cropX = 0, cropY = 0, cropWidth = video.videoWidth, cropHeight = video.videoHeight;
+            
+            if (videoAspect > targetAspect) {
+                // Video is wider, crop sides
+                cropWidth = video.videoHeight * targetAspect;
+                cropX = (video.videoWidth - cropWidth) / 2;
+            } else {
+                // Video is taller, crop top/bottom
+                cropHeight = video.videoWidth / targetAspect;
+                cropY = (video.videoHeight - cropHeight) / 2;
+            }
+            
+            ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, baseWidth, baseHeight);
+            
+            return canvas.toDataURL('image/png');
+        }
+
+        function displayPhoto(index, dataUrl) {
+            const slot = document.querySelector(`[data-index="${index}"]`);
+            const img = document.createElement('img');
+            img.src = dataUrl;
+            
+            // Clear existing content except number and retake button
+            const number = slot.querySelector('.photo-number');
+            const retakeBtn = slot.querySelector('.retake-btn');
+            slot.innerHTML = '';
+            slot.appendChild(number);
+            slot.appendChild(retakeBtn);
+            slot.appendChild(img);
+            slot.classList.add('filled');
+            
+            capturedPhotos[index] = dataUrl;
+        }
+
+        async function startCountdown() {
+            countdown.style.display = 'block';
+            
+            for (let i = 3; i > 0; i--) {
+                countdown.textContent = i;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            countdown.textContent = 'SMILE!';
+            await new Promise(resolve => setTimeout(resolve, 200));
+            countdown.style.display = 'none';
+        }
+
+        async function startPhotoSession() {
+            if (isCapturing) return;
+            
+            isCapturing = true;
+            startBtn.disabled = true;
+            currentPhotoIndex = 0;
+            
+            for (let i = 0; i < currentMode; i++) {
+                if (capturedPhotos[i] !== null) continue; // Skip already captured photos
+                
+                currentPhotoIndex = i;
+                status.textContent = `Get ready for photo ${i + 1}/${currentMode}`;
+                
+                await startCountdown();
+                
+                const photoData = capturePhoto();
+                displayPhoto(i, photoData);
+                
+                const progress = ((i + 1) / currentMode) * 100;
+                progressFill.style.width = `${progress}%`;
+                
+                if (i < currentMode - 1) {
+                    status.textContent = 'Great! Next photo in 2 seconds...';
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+            
+            status.textContent = 'Session complete! Download your photos.';
+            downloadBtn.style.display = 'inline-block';
+            isCapturing = false;
+            startBtn.disabled = false;
+            startBtn.textContent = 'Retake Missing';
+        }
+
+        function retakePhoto(index) {
+            if (isCapturing) return;
+            
+            capturedPhotos[index] = null;
+            const slot = document.querySelector(`[data-index="${index}"]`);
+            slot.innerHTML = `
+                <span class="photo-number">${index + 1}</span>
+                <button class="retake-btn" onclick="retakePhoto(${index})">↻</button>
+            `;
+            slot.classList.remove('filled');
+            
+            // Update progress
+            const filledCount = capturedPhotos.filter(p => p !== null).length;
+            const progress = (filledCount / currentMode) * 100;
+            progressFill.style.width = `${progress}%`;
+            
+            if (filledCount === 0) {
+                startBtn.textContent = 'Start Session';
+                downloadBtn.style.display = 'none';
+                status.textContent = 'Ready to start!';
+            } else {
+                downloadBtn.style.display = filledCount === currentMode ? 'inline-block' : 'none';
+                status.textContent = `${filledCount}/${currentMode} photos captured`;
+            }
+        }
+
+        function resetSession() {
+            capturedPhotos = new Array(currentMode).fill(null);
+            currentPhotoIndex = 0;
+            isCapturing = false;
+            startBtn.disabled = false;
+            startBtn.textContent = 'Start Session';
+            downloadBtn.style.display = 'none';
+            progressFill.style.width = '0%';
+            status.textContent = 'Ready to start!';
+            
+            setupPhotoGrid();
+        }
+
+        async function downloadPolaroid() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size based on mode with higher resolution
+            const padding = 80; // Increased padding for date and footer
+            const watermarkHeight = 40;
+            const dateHeight = 25;
+            const footerHeight = 30;
+            const gridGap = 15;
+            
+            let gridWidth, gridHeight, photoWidth, photoHeight;
+            
+            if (currentMode === 4) {
+                photoWidth = 300;
+                photoHeight = 375; // 4:5 ratio
+                gridWidth = (photoWidth * 2) + gridGap;
+                gridHeight = (photoHeight * 2) + gridGap;
+            } else {
+                photoWidth = 300;
+                photoHeight = 225; // 4:3 ratio
+                gridWidth = (photoWidth * 2) + gridGap;
+                gridHeight = (photoHeight * 3) + (gridGap * 2);
+            }
+            
+            canvas.width = gridWidth + (padding * 2);
+            canvas.height = gridHeight + (padding * 2) + watermarkHeight + dateHeight + footerHeight;
+            
+            // Draw border background
+            ctx.fillStyle = colorMap[currentColor].bg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add watermark at top center
+            ctx.fillStyle = colorMap[currentColor].text;
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('RySnapshots', canvas.width / 2, 35);
+            
+            // Add date under watermark
+            ctx.font = '16px Arial';
+            ctx.fillText(getCurrentDate(), canvas.width / 2, 60);
+            
+            // Draw photos directly without white background
+            const positions = currentMode === 4 ? 
+                [[0, 0], [1, 0], [0, 1], [1, 1]] :
+                [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2], [1, 2]];
+            
+            for (let i = 0; i < currentMode; i++) {
+                if (capturedPhotos[i]) {
+                    const img = new Image();
+                    img.src = capturedPhotos[i];
+                    
+                    await new Promise(resolve => {
+                        img.onload = () => {
+                            const [col, row] = positions[i];
+                            const x = padding + (col * (photoWidth + gridGap));
+                            const y = watermarkHeight + dateHeight + padding + (row * (photoHeight + gridGap));
+                            
+                            // Add subtle shadow
+                            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                            ctx.shadowBlur = 5;
+                            ctx.shadowOffsetX = 2;
+                            ctx.shadowOffsetY = 2;
+                            
+                            ctx.drawImage(img, x, y, photoWidth, photoHeight);
+                            
+                            // Reset shadow
+                            ctx.shadowColor = 'transparent';
+                            ctx.shadowBlur = 0;
+                            ctx.shadowOffsetX = 0;
+                            ctx.shadowOffsetY = 0;
+                            
+                            resolve();
+                        };
+                    });
+                }
+            }
+            
+            // Add footer saying at bottom
+            ctx.fillStyle = colorMap[currentColor].text;
+            ctx.font = 'italic 16px Arial';
+            ctx.textAlign = 'center';
+            const footerY = canvas.height - 15;
+            ctx.fillText('Every picture tells a story, every moment becomes a memory', canvas.width / 2, footerY);
+            
+            // Download
+            const link = document.createElement('a');
+            link.download = `RySnapshots_${currentMode}photos_${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', startPhotoSession);
+        resetBtn.addEventListener('click', resetSession);
+        downloadBtn.addEventListener('click', downloadPolaroid);
+
+        // Initialize
+        initCamera();
+        updatePolaroidColors();
+        setupPhotoGrid();
+    </script>
+</body>
+</html>
